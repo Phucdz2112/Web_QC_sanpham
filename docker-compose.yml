@@ -1,0 +1,112 @@
+name: project
+x-safe: &safe
+  restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  logging:
+    driver: json-file
+    options: {max-size: "5m", max-file: "3"}
+services:
+  init-logs:
+    image: busybox:1.37
+    command: sh -c 'chown 101:101 /nginx && chown 33:33 /app && chmod 755 /nginx /app'
+    volumes: [nginx_logs:/nginx, app_logs:/app]
+    network_mode: none
+    security_opt: [no-new-privileges:true]
+  wordpress:
+    <<: *safe
+    build: .
+    image: dtc255180105-wordpress:1.0
+    environment: &wp-env
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Generate .env first}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('DISALLOW_FILE_EDIT', true);
+        define('WP_MEMORY_LIMIT', '96M');
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./app/theme:/var/www/html/wp-content/themes/phuc-catalog:ro
+      - ./app/audit.php:/var/www/html/wp-content/mu-plugins/project-audit.php:ro
+      - app_logs:/var/log/project
+    networks: [frontend, backend]
+    mem_limit: 256m
+    depends_on:
+      mysql: {condition: service_healthy}
+      init-logs: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS http://localhost/wp-includes/images/blank.gif >/dev/null']
+      interval: 20s
+      timeout: 5s
+      retries: 10
+  mysql:
+    <<: *safe
+    image: mysql:8.4.13
+    command: [--innodb-buffer-pool-size=96M, --max-connections=40, --performance-schema=ON]
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Generate .env first}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Generate .env first}
+    volumes: [mysql84_data:/var/lib/mysql]
+    networks: [backend]
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -uwordpress --batch -e "SELECT 1" wordpress >/dev/null 2>&1']
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+  nginx:
+    <<: *safe
+    image: nginx:1.28-alpine
+    user: '101:101'
+    read_only: true
+    cap_drop: [ALL]
+    tmpfs: [/tmp, /var/cache/nginx]
+    ports: ['${BIND_IP:-127.0.0.1}:8082:8080']
+    volumes: ['./nginx/nginx.conf:/etc/nginx/nginx.conf:ro', nginx_logs:/logs]
+    networks: [frontend, monitoring]
+    depends_on:
+      wordpress: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:8080/healthz']
+      interval: 15s
+      timeout: 3s
+      retries: 5
+  phpmyadmin:
+    <<: *safe
+    image: phpmyadmin:5.2.3-apache
+    environment: {PMA_HOST: mysql, PMA_ARBITRARY: '0', UPLOAD_LIMIT: 32M}
+    ports: ['127.0.0.1:5432:80']
+    networks: [backend, admin]
+    mem_limit: 160m
+    depends_on:
+      mysql: {condition: service_healthy}
+  cli:
+    image: wordpress:cli-php8.3
+    user: '33:33'
+    profiles: [tools]
+    environment:
+      <<: *wp-env
+      SITE_URL: ${SITE_URL:-http://127.0.0.1:8082}
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD:?Generate .env first}
+      WP_ADMIN_USER: DTC255180105
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./app/theme:/var/www/html/wp-content/themes/phuc-catalog:ro
+      - ./app/audit.php:/var/www/html/wp-content/mu-plugins/project-audit.php:ro
+      - app_logs:/var/log/project
+      - ./scripts/seed.php:/opt/seed.php:ro
+    networks: [frontend, backend]
+    security_opt: [no-new-privileges:true]
+networks:
+  frontend:
+  backend: {internal: true}
+  admin:
+  monitoring:
+volumes:
+  wordpress_data:
+  mysql84_data:
+  nginx_logs:
+  app_logs:

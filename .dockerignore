@@ -1,0 +1,8 @@
+.git
+.env
+secrets
+backups
+evidence
+report
+*.docx
+*.pdf
