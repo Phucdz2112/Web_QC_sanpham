@@ -15,9 +15,9 @@ with sync_playwright() as p:
     context=browser.new_context(viewport={'width':1440,'height':1000},locale='vi-VN')
     page=context.new_page()
     page.goto(site,wait_until='networkidle'); assert page.locator('.product').count()>=6
-    page.screenshot(path=str(out/'01-website.png'),full_page=True); passed('Six public products')
+    page.screenshot(path=str(out/'01-website.png'),full_page=False); passed('At least six public products')
     page.locator('.product h3 a').first.click(); expect(page.locator('.detail-grid')).to_be_visible()
-    page.screenshot(path=str(out/'02-product-detail.png'),full_page=True); passed('Product detail')
+    page.screenshot(path=str(out/'02-product-detail.png'),full_page=False); passed('Product detail')
     mobile=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,device_scale_factor=1)
     m=mobile.new_page(); m.goto(site,wait_until='networkidle')
     assert m.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
@@ -41,7 +41,7 @@ with sync_playwright() as p:
     db=context.new_page(); db.goto('http://127.0.0.1:5432',wait_until='networkidle'); db.locator('#input_username').fill('wordpress'); db.locator('#input_password').fill(env['WORDPRESS_DB_PASSWORD']); db.locator('#input_go').click(); db.wait_for_load_state('networkidle'); expect(db.locator('#pma_navigation')).to_be_visible(); db.goto('http://127.0.0.1:5432/index.php?route=/database/structure&db=wordpress',wait_until='networkidle'); expect(db.locator('body')).to_contain_text('wp_posts'); db.screenshot(path=str(out/'06-phpmyadmin.png'),full_page=True); passed('phpMyAdmin authenticated database access')
     prom=context.new_page(); prom.goto('http://127.0.0.1:9091/targets',wait_until='networkidle'); expect(prom.locator('body')).to_contain_text('mysql'); prom.screenshot(path=str(out/'07-prometheus-targets.png'),full_page=True)
     g=context.new_page(); g.goto('http://127.0.0.1:3002/login',wait_until='networkidle'); g.locator('input[name=user]').fill('DTC255180105'); g.locator('input[name=password]').fill(env['GRAFANA_ADMIN_PASSWORD']); g.get_by_role('button',name='Log in',exact=True).click(); g.wait_for_url(re.compile(r'.*(?<!/login)$'))
-    g.goto('http://127.0.0.1:3002/d/web-qc-system',wait_until='networkidle'); expect(g.get_by_text('Nginx availability',exact=True)).to_be_visible(); g.wait_for_timeout(5000); g.screenshot(path=str(out/'08-grafana-dashboard.png'),full_page=True); passed('Grafana dashboard rendered')
+    g.goto('http://127.0.0.1:3002/d/web-qc-system',wait_until='networkidle'); expect(g.get_by_text('Nginx availability',exact=True)).to_be_visible(); g.wait_for_timeout(5000); g.screenshot(path=str(out/'08-grafana-dashboard.png'),full_page=False); passed('Grafana dashboard rendered')
     queries=['{project="web-qc-sanpham",job="nginx"} | json','{project="web-qc-sanpham",job="nginx"} | json | status >= 400','{project="web-qc-sanpham",job="wordpress"} | json | event=~"login_success|login_failed|product_saved|product_deleted"']
     for i,q in enumerate(queries,1):
         state={'A':{'datasource':'loki','queries':[{'refId':'A','expr':q,'queryType':'range','datasource':{'type':'loki','uid':'loki'}}],'range':{'from':'now-1h','to':'now'}}}

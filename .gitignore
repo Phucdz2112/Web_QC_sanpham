@@ -7,6 +7,12 @@ evidence/
 reports/
 report/
 render/
+screenshots/
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.bmp
 *.docx
 *.pdf
 *.sql
