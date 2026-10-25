@@ -1,0 +1,8 @@
+# 1. All Nginx access records
+{project="web-qc-sanpham",job="nginx"} | json
+
+# 2. HTTP errors
+{project="web-qc-sanpham",job="nginx"} | json | status >= 400
+
+# 3. Authentication and product administration
+{project="web-qc-sanpham",job="wordpress"} | json | event=~"login_success|login_failed|product_saved|product_deleted"

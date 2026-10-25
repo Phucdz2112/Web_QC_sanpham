@@ -16,7 +16,8 @@ update_option('siteurl', $url);
 update_option('blogname', 'PHUC STUDIO');
 update_option('blogdescription', 'Thiết bị cho góc làm việc sáng tạo');
 switch_theme('phuc-catalog');
-do_action('init');
+require_once get_theme_file_path('/functions.php');
+phuc_register_products();
 $products = [
  ['Bàn phím cơ Forma 75', 'keyboard', 1890000, 'Gõ êm, thiết kế gọn và kết nối không dây. Layout 75% giữ đủ phím chức năng cho công việc mỗi ngày.'],
  ['Tai nghe không dây Wave', 'headphones', 2490000, 'Âm thanh cân bằng, đệm tai mềm và thời lượng pin dài. Một khoảng tập trung cho riêng bạn.'],

@@ -1,0 +1,26 @@
+services:
+  loki:
+    image: grafana/loki:3.5.5
+    restart: unless-stopped
+    user: '10001:10001'
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    command: [-config.file=/etc/loki/config.yml]
+    ports: ['127.0.0.1:3101:3100']
+    volumes: ['./logging/loki.yml:/etc/loki/config.yml:ro', loki_data:/loki]
+    networks: [monitoring]
+    mem_limit: 220m
+  promtail:
+    image: grafana/promtail:3.5.5
+    restart: unless-stopped
+    user: '0:0'
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    command: [-config.file=/etc/promtail/config.yml]
+    volumes: ['./logging/promtail.yml:/etc/promtail/config.yml:ro', nginx_logs:/var/log/nginx:ro, app_logs:/var/log/project:ro, promtail_positions:/positions]
+    networks: [monitoring]
+    mem_limit: 100m
+volumes:
+  loki_data:
+  promtail_positions:

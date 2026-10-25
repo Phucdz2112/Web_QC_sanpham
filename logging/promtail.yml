@@ -1,0 +1,36 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+positions:
+  filename: /positions/positions.yml
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+scrape_configs:
+  - job_name: nginx
+    static_configs:
+      - targets: [localhost]
+        labels:
+          project: web-qc-sanpham
+          job: nginx
+          __path__: /var/log/nginx/access.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: time
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+  - job_name: wordpress
+    static_configs:
+      - targets: [localhost]
+        labels:
+          project: web-qc-sanpham
+          job: wordpress
+          __path__: /var/log/project/audit.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: time
+      - timestamp:
+          source: timestamp
+          format: RFC3339

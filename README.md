@@ -1,6 +1,6 @@
 # Website quảng bá sản phẩm bằng WordPress
 
-**Đinh Hữu Phúc · DTC255180105 · KTPM K23B**  
+**Đinh Hữu Phúc · DTC255180105 · KTPM K23B**
 Học phần Triển khai và quản trị hệ thống phần mềm. Repository: https://github.com/Phucdz2112/Web_QC_sanpham
 
 Ứng dụng PHUC STUDIO giới thiệu thiết bị cho góc làm việc. Trang công khai có danh mục, chi tiết và giao diện responsive; WordPress quản trị thêm, sửa, xóa và xuất bản sản phẩm. Giá được chuẩn hóa thành số nguyên không âm. Hình SVG do dự án tạo là minh họa giao diện, không phải ảnh chụp sản phẩm thật. Không có thanh toán hoặc gửi thư thật.

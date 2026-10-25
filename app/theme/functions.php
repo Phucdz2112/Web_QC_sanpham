@@ -1,6 +1,7 @@
 <?php
 add_action('after_setup_theme', function() { add_theme_support('title-tag'); });
-add_action('init', function() {
+add_filter('use_block_editor_for_post_type', function($use, $type) { return $type === 'product' ? false : $use; }, 10, 2);
+function phuc_register_products() {
     register_post_type('product', [
       'labels'=>['name'=>'Sản phẩm','singular_name'=>'Sản phẩm','add_new_item'=>'Thêm sản phẩm','edit_item'=>'Sửa sản phẩm'],
       'public'=>true, 'has_archive'=>true, 'show_in_rest'=>true, 'menu_icon'=>'dashicons-products',
@@ -11,7 +12,8 @@ add_action('init', function() {
       'auth_callback'=>function() { return current_user_can('edit_posts'); }]);
     register_post_meta('product','kind', ['type'=>'string','single'=>true,'show_in_rest'=>true,
       'sanitize_callback'=>'sanitize_key', 'auth_callback'=>function() { return current_user_can('edit_posts'); }]);
-});
+}
+add_action('init', 'phuc_register_products');
 add_action('add_meta_boxes', function() {
     add_meta_box('phuc-details','Thông tin sản phẩm', function($post) {
         wp_nonce_field('phuc_product','phuc_nonce');
