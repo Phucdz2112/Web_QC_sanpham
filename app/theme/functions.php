@@ -33,5 +33,5 @@ add_action('save_post_product', function($id) {
 function phuc_price($id) { return number_format((int)get_post_meta($id,'price',true),0,',','.') . ' ₫'; }
 function phuc_art($kind) {
     $allowed=['keyboard','headphones','lamp','speaker','mouse','stand'];
-    return get_stylesheet_directory_uri().'/assets/'.(in_array($kind,$allowed,true)?$kind:'keyboard').'.svg';
+    return get_stylesheet_directory_uri().'/assets/photos/'.(in_array($kind,$allowed,true)?$kind:'keyboard').'.jpg';
 }

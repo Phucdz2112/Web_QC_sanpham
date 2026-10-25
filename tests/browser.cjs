@@ -6,11 +6,11 @@ const localEnv=path.join(root,'.env');
 if(fs.existsSync(localEnv)) for(const line of fs.readFileSync(localEnv,'utf8').split(/\r?\n/)){
  const i=line.indexOf('=');if(i>0&&!line.startsWith('#')&&!process.env[line.slice(0,i)])process.env[line.slice(0,i)]=line.slice(i+1);
 }
-const env=process.env,site=env.SITE_URL;
+const env=process.env,site=env.SITE_URL||('http://'+(env.BIND_IP||'127.0.0.1')+':'+(env.WEB_PORT||'8082'));
 const out=path.resolve(env.EVIDENCE_DIR||path.join(root,'..','web-qc-artifacts','evidence'));
 if(out===root||out.startsWith(root+path.sep))throw Error('Evidence must stay outside repository');
 fs.mkdirSync(out,{recursive:true});
-const pma=env.PMA_URL||'http://127.0.0.1:5432',grafana=env.GRAFANA_URL||'http://127.0.0.1:3002',prom=env.PROMETHEUS_URL||'http://127.0.0.1:9091';
+const pma=env.PMA_URL||('http://127.0.0.1:'+(env.PHPMYADMIN_PORT||'5432')),grafana=env.GRAFANA_URL||('http://127.0.0.1:'+(env.GRAFANA_PORT||'3002')),prom=env.PROMETHEUS_URL||('http://127.0.0.1:'+(env.PROMETHEUS_PORT||'9091'));
 const passed=[];const pass=s=>{passed.push(s);console.log('PASS '+s)};
 let browser,page;
 (async()=>{
@@ -18,10 +18,10 @@ let browser,page;
  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'vi-VN'});context.setDefaultTimeout(60000);
  page=await context.newPage();
  const shot=async(name,p=page)=>p.screenshot({path:path.join(out,name),fullPage:false});
- await page.goto(site,{waitUntil:'networkidle'});assert((await page.locator('.product').count())>=6);await shot('01-website.png');pass('Public product catalog');
+ await page.goto(site,{waitUntil:'networkidle'});assert((await page.locator('.product').count())>=6);await page.evaluate(()=>document.fonts.ready);assert(await page.evaluate(()=>document.fonts.check('500 16px \"Be Vietnam Pro\"','Đinh Hữu Phúc')));assert((await page.locator('h1 em').evaluate(e=>getComputedStyle(e).fontFamily)).includes('Be Vietnam Pro'));for(const img of await page.locator('.product-art img').all()){await img.scrollIntoViewIfNeeded();await img.evaluate(e=>e.decode());assert((await img.getAttribute('src')).includes('/assets/photos/'))}await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));await shot('01-website.png');pass('Public product catalog with local font and six real photos');
  await page.locator('.product h3 a').first().click();await page.locator('.detail-grid').waitFor();await shot('02-product-detail.png');pass('Product detail');
  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true});const m=await mobile.newPage();await m.goto(site,{waitUntil:'networkidle'});assert(await m.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await m.screenshot({path:path.join(out,'03-mobile.png'),fullPage:true});await mobile.close();pass('Mobile layout');
- await page.goto(site+'/wp-login.php');await page.locator('#user_login').fill('DTC255180105');await page.locator('#user_pass').fill(env.WP_ADMIN_PASSWORD);await page.locator('#wp-submit').click();await page.waitForURL('**/wp-admin/**');pass('WordPress authentication');
+ await page.goto(site+'/wp-login.php');await page.locator('#user_login').fill(env.WP_ADMIN_USER||'DTC255180105');await page.locator('#user_pass').fill(env.WP_ADMIN_PASSWORD);await page.locator('#wp-submit').click();await page.waitForURL('**/wp-admin/**');pass('WordPress authentication');
  await page.goto(site+'/wp-admin/edit.php?post_type=product');await shot('04-wordpress-admin.png');
  await page.goto(site+'/wp-admin/post-new.php?post_type=product');const stamp=Date.now().toString();await page.locator('#title').fill('San pham kiem thu '+stamp);
  if(await page.locator('#content-html').isVisible())await page.locator('#content-html').click();await page.locator('#content').fill('Noi dung kiem thu CRUD tu trinh duyet.');
@@ -32,9 +32,9 @@ let browser,page;
  await page.locator('#title').fill('San pham da sua '+stamp);await price.fill('456000');await page.locator('#publish').click();await page.waitForLoadState('networkidle');await page.reload();assert((await page.locator('#title').inputValue())==='San pham da sua '+stamp);assert((await page.locator('[name=phuc_price]').inputValue())==='456000');await shot('05-product-edit.png');pass('Update persisted after reload');
  await page.locator('#delete-action a').click();await page.waitForLoadState('networkidle');await page.goto(site+'/wp-admin/edit.php?post_type=product&post_status=trash');const row=page.locator('#post-'+productId);await row.hover();page.on('dialog',d=>d.accept());await row.locator('a.submitdelete').click();await page.waitForLoadState('networkidle');assert((await page.locator('#post-'+productId).count())===0);pass('Delete test product permanently');
  await page.goto(site+'/not-found-demo-'+stamp);pass('Generate real HTTP error event');
- const db=await context.newPage();await db.goto(pma,{waitUntil:'networkidle'});await db.locator('#input_username').fill('wordpress');await db.locator('#input_password').fill(env.WORDPRESS_DB_PASSWORD);await db.locator('#input_go').click();await db.locator('#pma_navigation').waitFor();await db.goto(pma+'/index.php?route=/database/structure&db=wordpress',{waitUntil:'networkidle'});await db.getByText('wp_posts',{exact:true}).first().waitFor();await shot('06-phpmyadmin.png',db);pass('phpMyAdmin authenticated database access');
+ const db=await context.newPage();await db.goto(pma,{waitUntil:'networkidle'});await db.locator('#input_username').fill(env.MYSQL_USER||'wordpress');await db.locator('#input_password').fill(env.WORDPRESS_DB_PASSWORD);await db.locator('#input_go').click();await db.locator('#pma_navigation').waitFor();await db.goto(pma+'/index.php?route=/database/structure&db='+encodeURIComponent(env.MYSQL_DATABASE||'wordpress'),{waitUntil:'networkidle'});await db.getByText('wp_posts',{exact:true}).first().waitFor();await shot('06-phpmyadmin.png',db);pass('phpMyAdmin authenticated database access');
  const target=await context.newPage();await target.goto(prom+'/targets');await target.getByText('mysql-exporter:9104',{exact:false}).first().waitFor();await shot('07-prometheus-targets.png',target);pass('Prometheus targets rendered');
- const g=await context.newPage();await g.goto(grafana+'/login');await g.locator('input[name=user]').fill('DTC255180105');await g.locator('input[name=password]').fill(env.GRAFANA_ADMIN_PASSWORD);await g.getByRole('button',{name:'Log in',exact:true}).click();await g.waitForURL(u=>!u.pathname.includes('/login'));
+ const g=await context.newPage();await g.goto(grafana+'/login');await g.locator('input[name=user]').fill(env.GRAFANA_ADMIN_USER||'DTC255180105');await g.locator('input[name=password]').fill(env.GRAFANA_ADMIN_PASSWORD);await g.getByRole('button',{name:'Log in',exact:true}).click();await g.waitForURL(u=>!u.pathname.includes('/login'));
  const dashboardResponse=g.waitForResponse(r=>r.url().includes('/api/ds/query')&&r.request().method()==='POST',{timeout:60000});
  await g.goto(grafana+'/d/web-qc-system');await g.getByText('Nginx availability',{exact:true}).waitFor();const dr=await dashboardResponse;assert(dr.ok());await g.waitForTimeout(2000);await shot('08-grafana-dashboard.png',g);pass('Grafana dashboard rendered with query response');
  const queries=['{project="web-qc-sanpham",job="nginx"} | json','{project="web-qc-sanpham",job="nginx"} | json | status >= 400','{project="web-qc-sanpham",job="wordpress"} | json | event=~"login_success|login_failed|product_saved|product_deleted"'];
