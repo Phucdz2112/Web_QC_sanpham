@@ -129,8 +129,6 @@ Không chạy `docker compose down -v`, `volume prune` hay import SQL đè lên 
 2. Prometheus, cAdvisor, exporters và dashboard Grafana được provision.
 3. Loki, Promtail, ba LogQL và kiểm tra tích hợp.
 
-GitHub chỉ chứa code, SVG giao diện, cấu hình, scripts, tests và README. Báo cáo Word/PDF, screenshots, dump database, dữ liệu runtime và credentials được lưu bên ngoài repository theo yêu cầu bàn giao. Tài khoản GitHub hiện là Phucdz2112; mã SV thể hiện trong tác giả, tài khoản ứng dụng và dashboard. Nếu giảng viên yêu cầu chính tên đăng nhập GitHub trùng mã SV, cần xử lý riêng trên tài khoản GitHub.
-
 ## Kịch bản demo
 
 Mở website và một trang chi tiết; đăng nhập WordPress bằng mã SV và thao tác sản phẩm; mở phpMyAdmin kiểm tra bảng; mở Prometheus Targets và hai metric availability; mở dashboard Grafana; chạy ba LogQL với log mới; trình bày networks, cổng, UID, headers, quyền DB và cách bảo vệ secrets; cuối cùng mở GitHub để đối chiếu commits và README.
