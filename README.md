@@ -101,4 +101,6 @@ Xem [DEMO.md](DEMO.md) để đổi cổng rồi trả về, sửa app/Nginx/scr
 
 Giữ ba commit mốc app/DB/Nginx, monitoring, logging và lịch sử đã có; các commit sau hợp nhất Compose và hoàn thiện giao diện. Không viết lại lịch sử để giả tiến độ. Repo chỉ chứa source, cấu hình, tài nguyên ứng dụng, scripts, tests và tài liệu kỹ thuật. Word/PDF, minh chứng, render, dump và secrets ở ngoài repo.
 
-GitHub hiện Phucdz2112 theo repo được chỉ định. Mã SV nằm trong tác giả, tài khoản app và dashboard. Nếu giảng viên bắt buộc chính username GitHub trùng MSSV, cần xác nhận riêng; không tự đổi danh tính hoặc URL repo.
+## Kịch bản demo
+
+Mở website và một trang chi tiết; đăng nhập WordPress bằng mã SV và thao tác sản phẩm; mở phpMyAdmin kiểm tra bảng; mở Prometheus Targets và hai metric availability; mở dashboard Grafana; chạy ba LogQL với log mới; trình bày networks, cổng, UID, headers, quyền DB và cách bảo vệ secrets; cuối cùng mở GitHub để đối chiếu commits và README.
