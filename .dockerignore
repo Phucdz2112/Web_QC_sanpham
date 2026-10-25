@@ -6,3 +6,9 @@ evidence
 report
 *.docx
 *.pdf
+node_modules
+__pycache__
+.venv
+render
+screenshots
+*.log

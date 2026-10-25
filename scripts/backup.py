@@ -11,7 +11,7 @@ stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 sql=dest/f'wordpress-{stamp}.sql'
 with sql.open('wb') as f:
     os.chmod(sql,0o600)
-    subprocess.run(['docker','compose','exec','-T','mysql','sh','-c','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --no-tablespaces --routines --triggers wordpress'],cwd=root,stdout=f,check=True)
+    subprocess.run(['docker','compose','exec','-T','mysql','sh','-c','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction --no-tablespaces --routines --triggers "$MYSQL_DATABASE"'],cwd=root,stdout=f,check=True)
 container=subprocess.check_output(['docker','compose','ps','-q','wordpress'],cwd=root,text=True).strip()
 archive=dest/f'wordpress-files-{stamp}.tar.gz'
 with archive.open('wb') as f:

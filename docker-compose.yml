@@ -1,112 +1,360 @@
 name: project
-x-safe: &safe
-  restart: unless-stopped
-  security_opt: [no-new-privileges:true]
-  logging:
-    driver: json-file
-    options: {max-size: "5m", max-file: "3"}
 services:
   init-logs:
     image: busybox:1.37
     command: sh -c 'chown 101:101 /nginx && chown 33:33 /app && chmod 755 /nginx /app'
-    volumes: [nginx_logs:/nginx, app_logs:/app]
+    volumes:
+    - nginx_logs:/nginx
+    - app_logs:/app
     network_mode: none
-    security_opt: [no-new-privileges:true]
+    security_opt:
+    - no-new-privileges:true
   wordpress:
-    <<: *safe
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '3'
     build: .
     image: dtc255180105-wordpress:1.0
-    environment: &wp-env
+    environment:
       WORDPRESS_DB_HOST: mysql:3306
-      WORDPRESS_DB_NAME: wordpress
-      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wordpress}
       WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Generate .env first}
-      WORDPRESS_CONFIG_EXTRA: |
-        define('DISALLOW_FILE_EDIT', true);
-        define('WP_MEMORY_LIMIT', '96M');
+      WORDPRESS_CONFIG_EXTRA: 'define(''DISALLOW_FILE_EDIT'', true);
+
+        define(''WP_MEMORY_LIMIT'', ''96M'');
+
+        define(''WP_HOME'', getenv(''SITE_URL''));
+
+        define(''WP_SITEURL'', getenv(''SITE_URL''));
+
+        '
+      SITE_URL: http://${BIND_IP:-127.0.0.1}:${WEB_PORT:-8082}
     volumes:
-      - wordpress_data:/var/www/html
-      - ./app/theme:/var/www/html/wp-content/themes/phuc-catalog:ro
-      - ./app/audit.php:/var/www/html/wp-content/mu-plugins/project-audit.php:ro
-      - app_logs:/var/log/project
-    networks: [frontend, backend]
+    - wordpress_data:/var/www/html
+    - ./app/theme:/var/www/html/wp-content/themes/phuc-catalog:ro
+    - ./app/audit.php:/var/www/html/wp-content/mu-plugins/project-audit.php:ro
+    - app_logs:/var/log/project
+    networks:
+    - frontend
+    - backend
     mem_limit: 256m
     depends_on:
-      mysql: {condition: service_healthy}
-      init-logs: {condition: service_completed_successfully}
+      mysql:
+        condition: service_healthy
+      init-logs:
+        condition: service_completed_successfully
     healthcheck:
-      test: [CMD-SHELL, 'curl -fsS http://localhost/wp-includes/images/blank.gif >/dev/null']
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost/wp-includes/images/blank.gif >/dev/null
       interval: 20s
       timeout: 5s
       retries: 10
   mysql:
-    <<: *safe
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '3'
     image: mysql:8.4.13
-    command: [--innodb-buffer-pool-size=96M, --max-connections=40, --performance-schema=ON]
+    command:
+    - --innodb-buffer-pool-size=96M
+    - --max-connections=40
+    - --performance-schema=ON
     environment:
-      MYSQL_DATABASE: wordpress
-      MYSQL_USER: wordpress
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wordpress}
+      MYSQL_USER: ${MYSQL_USER:-wordpress}
       MYSQL_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Generate .env first}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Generate .env first}
-    volumes: [mysql84_data:/var/lib/mysql]
-    networks: [backend]
+    volumes:
+    - mysql84_data:/var/lib/mysql
+    - mysql_socket:/var/run/mysqld
+    networks:
+    - backend
     mem_limit: 512m
     healthcheck:
-      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -uwordpress --batch -e "SELECT 1" wordpress >/dev/null 2>&1']
+      test:
+      - CMD-SHELL
+      - MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u"$$MYSQL_USER" --batch -e "SELECT 1" "$$MYSQL_DATABASE" >/dev/null 2>&1
       interval: 15s
       timeout: 5s
       retries: 20
       start_period: 90s
   nginx:
-    <<: *safe
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '3'
     image: nginx:1.28-alpine
-    user: '101:101'
+    user: 101:101
     read_only: true
-    cap_drop: [ALL]
-    tmpfs: [/tmp, /var/cache/nginx]
-    ports: ['${BIND_IP:-127.0.0.1}:8082:8080']
-    volumes: ['./nginx/nginx.conf:/etc/nginx/nginx.conf:ro', nginx_logs:/logs]
-    networks: [frontend, monitoring]
+    cap_drop:
+    - ALL
+    tmpfs:
+    - /tmp
+    - /var/cache/nginx
+    ports:
+    - ${BIND_IP:-127.0.0.1}:${WEB_PORT:-8082}:8080
+    volumes:
+    - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    - nginx_logs:/logs
+    networks:
+    - frontend
+    - monitoring
     depends_on:
-      wordpress: {condition: service_healthy}
+      wordpress:
+        condition: service_healthy
+      wordpress-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:8080/healthz']
+      test:
+      - CMD-SHELL
+      - wget -q -O /dev/null http://127.0.0.1:8080/healthz
       interval: 15s
       timeout: 3s
       retries: 5
   phpmyadmin:
-    <<: *safe
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '3'
     image: phpmyadmin:5.2.3-apache
-    environment: {PMA_HOST: mysql, PMA_ARBITRARY: '0', UPLOAD_LIMIT: 32M}
-    ports: ['127.0.0.1:5432:80']
-    networks: [backend, admin]
+    environment:
+      PMA_HOST: mysql
+      PMA_ARBITRARY: '0'
+      UPLOAD_LIMIT: 32M
+    ports:
+    - 127.0.0.1:${PHPMYADMIN_PORT:-5432}:80
+    networks:
+    - backend
+    - admin
     mem_limit: 160m
     depends_on:
-      mysql: {condition: service_healthy}
-  cli:
+      mysql:
+        condition: service_healthy
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    user: 65534:65534
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --storage.tsdb.retention.time=3d
+    - --storage.tsdb.retention.size=300MB
+    ports:
+    - 127.0.0.1:${PROMETHEUS_PORT:-9091}:9090
+    volumes:
+    - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus_data:/prometheus
+    networks:
+    - monitoring
+    mem_limit: 180m
+  grafana:
+    image: grafana/grafana:13.2.4
+    restart: unless-stopped
+    user: 472:472
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-DTC255180105}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Generate .env first}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    ports:
+    - 127.0.0.1:${GRAFANA_PORT:-3002}:3000
+    volumes:
+    - grafana_data:/var/lib/grafana
+    - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+    - monitoring
+    mem_limit: 512m
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.2
+    restart: unless-stopped
+    user: 65534:65534
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    command:
+    - --nginx.scrape-uri=http://nginx:8080/nginx_status
+    networks:
+    - monitoring
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.17.2
+    restart: unless-stopped
+    user: 65534:65534
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    command:
+    - --config.my-cnf=/run/exporter/exporter.cnf
+    volumes:
+    - exporter_config:/run/exporter:ro
+    networks:
+    - backend
+    - monitoring
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+  cadvisor:
+    image: ghcr.io/google/cadvisor:0.55.1
+    restart: unless-stopped
+    privileged: true
+    command:
+    - --docker_only=true
+    - --housekeeping_interval=30s
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:ro
+    - /sys:/sys:ro
+    - /var/lib/docker:/var/lib/docker:ro
+    - /var/lib/containerd:/var/lib/containerd:ro
+    - /dev/disk:/dev/disk:ro
+    devices:
+    - /dev/kmsg:/dev/kmsg
+    networks:
+    - monitoring
+    mem_limit: 180m
+  loki:
+    image: grafana/loki:3.5.5
+    restart: unless-stopped
+    user: 10001:10001
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    command:
+    - -config.file=/etc/loki/config.yml
+    ports:
+    - 127.0.0.1:${LOKI_PORT:-3101}:3100
+    volumes:
+    - ./logging/loki.yml:/etc/loki/config.yml:ro
+    - loki_data:/loki
+    networks:
+    - monitoring
+    mem_limit: 220m
+  promtail:
+    image: grafana/promtail:3.5.5
+    restart: unless-stopped
+    user: 0:0
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    command:
+    - -config.file=/etc/promtail/config.yml
+    volumes:
+    - ./logging/promtail.yml:/etc/promtail/config.yml:ro
+    - nginx_logs:/var/log/nginx:ro
+    - app_logs:/var/log/project:ro
+    - promtail_positions:/positions
+    networks:
+    - monitoring
+    mem_limit: 100m
+  wordpress-init:
     image: wordpress:cli-php8.3
     user: '33:33'
-    profiles: [tools]
     environment:
-      <<: *wp-env
-      SITE_URL: ${SITE_URL:-http://127.0.0.1:8082}
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Generate .env first}
+      WORDPRESS_CONFIG_EXTRA: 'define(''DISALLOW_FILE_EDIT'', true);
+
+        define(''WP_MEMORY_LIMIT'', ''96M'');
+
+        define(''WP_HOME'', getenv(''SITE_URL''));
+
+        define(''WP_SITEURL'', getenv(''SITE_URL''));
+
+        '
+      SITE_URL: http://${BIND_IP:-127.0.0.1}:${WEB_PORT:-8082}
       WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD:?Generate .env first}
-      WP_ADMIN_USER: DTC255180105
+      WP_ADMIN_USER: ${WP_ADMIN_USER:-DTC255180105}
     volumes:
-      - wordpress_data:/var/www/html
-      - ./app/theme:/var/www/html/wp-content/themes/phuc-catalog:ro
-      - ./app/audit.php:/var/www/html/wp-content/mu-plugins/project-audit.php:ro
-      - app_logs:/var/log/project
-      - ./scripts/seed.php:/opt/seed.php:ro
-    networks: [frontend, backend]
-    security_opt: [no-new-privileges:true]
+    - wordpress_data:/var/www/html
+    - ./app/theme:/var/www/html/wp-content/themes/phuc-catalog:ro
+    - ./app/audit.php:/var/www/html/wp-content/mu-plugins/project-audit.php:ro
+    - app_logs:/var/log/project
+    - ./scripts/seed.php:/opt/seed.php:ro
+    - ./scripts/init-wordpress.sh:/opt/init-wordpress.sh:ro
+    networks:
+    - frontend
+    - backend
+    security_opt:
+    - no-new-privileges:true
+    entrypoint:
+    - /bin/sh
+    - /opt/init-wordpress.sh
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    restart: 'no'
+    mem_limit: 128m
+  database-init:
+    image: mysql:8.4.13
+    restart: 'no'
+    entrypoint:
+    - /bin/sh
+    - /opt/init-database.sh
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Generate .env first}
+      EXPORTER_PASSWORD: ${EXPORTER_PASSWORD:?Generate .env first}
+    volumes:
+    - mysql_socket:/var/run/mysqld
+    - exporter_config:/exporter
+    - ./scripts/init-database.sh:/opt/init-database.sh:ro
+    network_mode: none
+    security_opt:
+    - no-new-privileges:true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    mem_limit: 96m
 networks:
-  frontend:
-  backend: {internal: true}
-  admin:
-  monitoring:
+  frontend: null
+  backend:
+    internal: true
+  admin: null
+  monitoring: null
 volumes:
-  wordpress_data:
-  mysql84_data:
-  nginx_logs:
-  app_logs:
+  wordpress_data: null
+  mysql84_data: null
+  nginx_logs: null
+  app_logs: null
+  prometheus_data: null
+  grafana_data: null
+  loki_data: null
+  promtail_positions: null
+  mysql_socket: null
+  exporter_config: null

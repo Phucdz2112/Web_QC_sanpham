@@ -1,25 +1,20 @@
-# Website quảng bá sản phẩm bằng WordPress
+# PHUC STUDIO — Website quảng bá sản phẩm
 
-**Đinh Hữu Phúc · DTC255180105 · KTPM K23B**
-Học phần Triển khai và quản trị hệ thống phần mềm. Repository: https://github.com/Phucdz2112/Web_QC_sanpham
+Đinh Hữu Phúc · DTC255180105 · KTPM K23B · Giảng viên Hoàng Văn Tâm.
 
-Ứng dụng PHUC STUDIO giới thiệu thiết bị cho góc làm việc. Trang công khai có danh mục, chi tiết và giao diện responsive; WordPress quản trị thêm, sửa, xóa và xuất bản sản phẩm. Giá được chuẩn hóa thành số nguyên không âm. Hình SVG do dự án tạo là minh họa giao diện, không phải ảnh chụp sản phẩm thật. Không có thanh toán hoặc gửi thư thật.
+WordPress/MySQL phục vụ danh mục, chi tiết và quản trị sản phẩm. Giao diện dùng cùng phông Be Vietnam Pro hỗ trợ tiếng Việt và ảnh thiết bị thật được lưu local. Source/cấu hình/tài nguyên ứng dụng trên GitHub; Word và ảnh minh chứng ở ngoài repository.
 
-## Kiến trúc
+## Một file Compose
 
-```text
-Browser -> Nginx :8082 -> WordPress Apache -> MySQL
-SSH tunnel -> phpMyAdmin :5432 / Grafana :3002 / Prometheus :9091
-Prometheus -> cAdvisor / nginx-exporter / mysql-exporter
-Grafana -> Prometheus + Loki
-Nginx access log + WordPress audit log -> Promtail -> Loki
-```
+Browser → Nginx:8082 → WordPress → MySQL. Prometheus lấy metrics từ cAdvisor, Nginx exporter và MySQL exporter; Grafana hiển thị dashboard. Nginx access/WordPress audit → Promtail → Loki → Grafana Explore.
 
-Tất cả dịch vụ chạy bằng Docker Compose. `docker-compose.yml` chứa web, DB, phpMyAdmin và Nginx; `compose.monitoring.yml` bổ sung monitoring; `compose.logging.yml` bổ sung logging. `scripts/dc.sh` ghép cả ba file. Không dùng Docker Desktop trên VM Ubuntu.
+`docker-compose.yml` là file Compose duy nhất, không profiles, override hay wrapper ghép `-f`. Cấu hình riêng ở `nginx/`, `monitoring/`, `logging/`; theme/plugin ở `app/`.
 
-## Chạy trên Ubuntu mới
+Ba tác vụ `init-logs`, `database-init`, `wordpress-init` chuẩn bị quyền log, tài khoản exporter và dữ liệu web rồi thoát mã 0. Mười một dịch vụ dài hạn tiếp tục chạy. `database-init` dùng Unix socket chung với MySQL, không có mạng. Khởi tạo chạy lại không xóa dữ liệu hiện có.
 
-Yêu cầu Docker Engine và Compose plugin, Python 3, Git. Khuyến nghị RAM 4 GB. Máy lab 2 vCPU, RAM khả dụng khoảng 1,6 GiB cần swap; các dịch vụ có giới hạn bộ nhớ.
+## Chạy trên Ubuntu
+
+Yêu cầu Docker Engine, Compose plugin, Git, Python 3. Máy lab dùng Ubuntu 26.04.1 LTS, 2 vCPU, RAM Linux khoảng 1,6 GiB và swap 2 GiB; khuyến nghị 4 GB RAM. Không thay Engine trong VM bằng Docker Desktop trên Windows.
 
 ```bash
 git clone https://github.com/Phucdz2112/Web_QC_sanpham
@@ -27,91 +22,70 @@ cd Web_QC_sanpham
 python3 scripts/create-env.py
 ```
 
-Sửa `BIND_IP` và `SITE_URL` trong `.env` theo IP máy. Mật khẩu được sinh ngẫu nhiên riêng cho từng tài khoản, không in ra terminal và không đưa vào Git. Cấp quyền Docker theo chính sách máy; nếu tài khoản chưa được cấp, chạy các lệnh Docker với sudo.
+Sửa `BIND_IP` theo IP VM. Script sinh mật khẩu riêng trong `.env` mode 600, không in mật khẩu hoặc ghi đè file cũ. `.env.example` liệt kê đúng các biến được dùng: IP, cổng, DB/user và tài khoản quản trị.
 
 ```bash
-sudo docker compose up -d --build --wait --wait-timeout 300
-sudo sh scripts/install.sh
-sudo python3 scripts/setup-exporter.py
-sudo sh scripts/dc.sh up -d
-sudo sh scripts/dc.sh ps
+sudo docker compose config --quiet
+sudo docker compose up -d --build
+sudo docker compose ps -a
 ```
 
-Không chạy `create-env.py` để thay mật khẩu database đã tồn tại. Với named volume cũ, thay `.env` không đổi tài khoản đã lưu trong MySQL; phải backup và cập nhật SQL tương ứng trước. Trên máy bàn giao, Compose project là `project`, giữ `project_wordpress_data` và `project_mysql84_data`. Đổi tên project tạo bộ volume khác, không tự chuyển dữ liệu.
+Một lệnh `up` khởi động toàn bộ stack sau khi chuẩn bị `.env`; không cần cài web/exporter bằng script riêng. Chờ các healthcheck và ba init thoát 0, rồi kiểm tra API/giao diện. Grafana có thể cần thêm thời gian khởi động.
+
+Máy bàn giao dùng `/home/phuc2102/Project`, tên Compose `project`. Giữ volume `project_wordpress_data`, `project_mysql84_data` và các volume quan sát. Đổi project name tạo bộ volume khác; không dùng `down -v` hoặc prune volumes.
 
 ## Truy cập và tài khoản
 
-Website: http://192.168.74.141:8082 ; quản trị: `/wp-admin/`. Từ Windows mở terminal và giữ SSH tunnel:
+Website http://192.168.74.141:8082 ; quản trị `/wp-admin/`. URL WordPress tự suy ra từ `BIND_IP` và `WEB_PORT`.
 
-```bash
+**PowerShell trên Windows**, giữ SSH tunnel:
+
+```powershell
 ssh -N -L 5432:127.0.0.1:5432 -L 3002:127.0.0.1:3002 -L 9091:127.0.0.1:9091 -L 3101:127.0.0.1:3101 phuc2102@192.168.74.141
 ```
 
-| Thành phần | Địa chỉ trên Windows | Tài khoản | Mật khẩu trong `.env` trên VM |
+| Thành phần | Địa chỉ trên Windows | User mặc định | Mật khẩu trong `.env` trên VM |
 |---|---|---|---|
-| WordPress | Website `/wp-admin/` | `DTC255180105` | `WP_ADMIN_PASSWORD` |
-| phpMyAdmin | http://localhost:5432 | `wordpress` | `WORDPRESS_DB_PASSWORD` |
-| Grafana | http://localhost:3002 | `DTC255180105` | `GRAFANA_ADMIN_PASSWORD` |
-| Prometheus | http://localhost:9091 | Không bật auth trong lab | Qua SSH tunnel |
-| Loki API | http://localhost:3101 | Không bật auth trong lab | Qua SSH tunnel |
+| WordPress | Website `/wp-admin/` | DTC255180105 | WP_ADMIN_PASSWORD |
+| phpMyAdmin | http://localhost:5432 | wordpress | WORDPRESS_DB_PASSWORD |
+| Grafana | http://localhost:3002 | DTC255180105 | GRAFANA_ADMIN_PASSWORD |
+| Prometheus | http://localhost:9091 | Qua tunnel | Không bật auth riêng trong lab |
+| Loki | http://localhost:3101 | Qua tunnel | Không bật auth riêng trong lab |
 
-Tài khoản root chỉ dùng bảo trì, không dùng làm tài khoản ứng dụng. `.env` mode 600. Không chụp, gửi lên Git hoặc ghi mật khẩu vào báo cáo. Địa chỉ email example.test chỉ phục vụ minh họa.
+Không dùng root cho app. Không gửi `.env`, chụp mật khẩu hay in toàn bộ `docker compose config`. Đổi mật khẩu/tên DB/user hoặc tài khoản Grafana trên volume cũ cần backup và cập nhật SQL/tài khoản thật; chỉ thay environment không đổi dữ liệu đã lưu. Không xóa volume để làm nhanh.
 
-## Giám sát
+## Giao diện và nghiệp vụ
 
-Grafana tự provision hai datasource Prometheus và Loki, folder `DTC255180105`, dashboard UID `web-qc-system`. Dashboard gồm trạng thái Nginx/MySQL, scrape targets, số container, CPU, RAM, lưu lượng mạng, tốc độ request web và truy vấn DB.
+Custom post type `product` lưu tên, nội dung, giá nguyên không âm và kiểu ảnh. Admin thêm/sửa/xóa/xuất bản; nonce và phân quyền bảo vệ thao tác ghi. Sáu sản phẩm mẫu được tạo một lần; không có thanh toán hay gửi thư thật. Tên bộ sưu tập và giá phục vụ đồ án.
 
-Trong Prometheus kiểm tra:
+Ảnh thật trong `app/theme/assets/photos/` là tài nguyên ứng dụng được commit cùng `sources.json`; không phải ảnh minh chứng. Phông local kèm giấy phép OFL. Xem [nguồn ảnh và phông](app/theme/assets/PHOTOS.md).
 
-```promql
-up
-nginx_up
-mysql_up
-count(container_last_seen{name!=""})
-```
+## Monitoring và logging
 
-Phải có `nginx_up = 1`, `mysql_up = 1` và metrics container không rỗng. Target exporter `UP` chỉ chứng minh exporter phản hồi HTTP; không đảm bảo nó kết nối được web/DB. Tạo traffic rồi đợi hai chu kỳ scrape trước khi xem rate. CPU là phần trăm một lõi; tổng máy nhiều lõi có thể vượt 100%. Network rate có thể đếm trùng giữa interface, không coi tổng các container là lưu lượng host duy nhất.
+Grafana provision Prometheus/Loki và dashboard 10 panel UID `web-qc-system`, folder DTC255180105. Trong Prometheus kiểm tra `up`, `nginx_up`, `mysql_up`, `count(container_last_seen{name!=""})`. Hai metric dịch vụ phải bằng 1; exporter UP chưa đủ chứng minh DB/web kết nối được.
 
-## Log tập trung và LogQL
+CPU là phần trăm một lõi, có thể vượt 100% trên nhiều vCPU. RAM dùng bytes; network rate có thể đếm trùng interface. Tạo traffic, chờ ít nhất hai lần scrape trước khi xem rate.
 
-Promtail đọc shared volumes ở chế độ chỉ đọc, gắn nhãn job/project có cardinality thấp rồi gửi Loki. File positions nằm trên volume riêng. Nginx log JSON không ghi query string, cookie, token hoặc request body. WordPress audit chỉ ghi sự kiện và ID nội bộ.
+Trong Grafana Explore chọn Loki và thời gian gần nhất, chạy ba query trong `logging/queries.logql`. Truy cập web, URL lỗi hoặc thao tác sản phẩm thử để tạo log thật. Promtail đọc shared volumes chỉ đọc và giữ positions trên volume; log không ghi mật khẩu, cookie, token, body hay query string.
 
-Trong Grafana Explore chọn datasource Loki, thời gian 15 phút gần nhất:
-
-```logql
-{project="web-qc-sanpham",job="nginx"} | json
-```
-
-```logql
-{project="web-qc-sanpham",job="nginx"} | json | status >= 400
-```
-
-```logql
-{project="web-qc-sanpham",job="wordpress"} | json | event=~"login_success|login_failed|product_saved|product_deleted"
-```
-
-Truy cập website, mở đường dẫn không tồn tại, đăng nhập và thêm/sửa/xóa sản phẩm thử để tạo dữ liệu thật. Chụp kết quả có dòng log, không chỉ chụp câu query. Promtail đã EOL ngày 02/03/2026; giữ trong lab theo yêu cầu đề, production cần chuyển sang Alloy: https://grafana.com/docs/loki/latest/send-data/promtail/
+Promtail đã EOL 02/03/2026; giữ theo đề trong lab, sản xuất cần Alloy: https://grafana.com/docs/loki/latest/send-data/promtail/
 
 ## Hardening
 
-* Nginx UID 101; Prometheus/exporters UID 65534; Grafana UID 472; Loki UID 10001. Nginx và một số dịch vụ có filesystem chỉ đọc, `cap_drop: ALL`, `no-new-privileges`.
-* Tách mạng frontend, backend internal, admin và monitoring. MySQL, exporters và cAdvisor không publish cổng. Công cụ quản trị chỉ bind loopback.
-* Mật khẩu ngẫu nhiên riêng biệt; không dùng root cho ứng dụng. User `wordpress` chỉ có quyền schema `wordpress`; user exporter riêng theo quyền đọc cần thiết của mysqld_exporter.
-* Nginx thêm X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy; ẩn version, chặn dotfiles/XML-RPC và hạn chế tốc độ đăng nhập. WordPress dùng phân quyền, nonce và escaping; tắt sửa file qua admin.
-* Log Docker giới hạn 5 MB × 3 file; volumes giữ dữ liệu qua recreate. Backup nằm ngoài Git, file mode 600.
+Nginx UID 101, Prometheus/exporters 65534, Grafana 472, Loki 10001. Dịch vụ phù hợp dùng read_only, cap_drop và no-new-privileges. Tách frontend/backend internal/admin/monitoring; DB/exporters không publish; admin loopback. Mật khẩu riêng, .env 600; app user giới hạn schema; exporter account riêng. Nginx có bốn headers, ẩn version, chặn dotfiles/XML-RPC, rate limit login. WordPress tắt sửa file, kiểm tra nonce/quyền và escape đầu ra. Docker logs giới hạn 5 MB × 3 file.
 
-Ngoại lệ phải hiểu khi demo: init-logs cần root chown; Apache master của WordPress/phpMyAdmin khởi động root rồi chạy worker www-data; MySQL entrypoint hạ quyền sang mysql; Promtail root đọc log volumes nhưng drop capabilities; cAdvisor privileged để đọc metrics host. Không tuyên bố tất cả container đều non-root. `.env` vẫn là bí mật dạng file, người có quyền Docker có thể đọc nó.
+Ngoại lệ: init chuẩn bị quyền/config; MySQL entrypoint hạ quyền; Apache master root rồi worker www-data; Promtail root đọc log nhưng drop capabilities/read-only; cAdvisor privileged đọc host. Không tuyên bố mọi container non-root. UFW được kiểm tra theo trạng thái thật; loopback không có nghĩa UFW đã bật. Người có quyền Docker có thể đọc bí mật container.
 
-HTTP kèm security headers đáp ứng lựa chọn trong đề; chưa có TLS nên chỉ dùng trong mạng VM tin cậy. Không bật HSTS khi chưa có HTTPS. Không công khai các cổng quản trị ra Internet.
+HTTP kèm headers đáp ứng lựa chọn của đề; chỉ demo mạng VM tin cậy. Headers không mã hóa mật khẩu; admin qua SSH tunnel. Không bật HSTS trên HTTP; sản xuất cần TLS. Grafana giới hạn 512 MB; VM ít RAM có thể dùng swap.
 
-## Backup và kiểm thử
+## Backup kiểm thử và demo
 
 ```bash
 sudo python3 scripts/backup.py /home/phuc2102/web-qc-artifacts/backups
 sudo env EVIDENCE_DIR=/home/phuc2102/web-qc-artifacts/evidence python3 tests/check.py
 ```
 
-`tests/check.py` là kiểm tra tích hợp read-only, ghi JSON ngoài repository. `tests/runtime.py` kiểm tra backup, phục hồi vào schema tạm riêng rồi xóa schema thử, và restart có kiểm soát để đối chiếu dữ liệu. Kiểm thử trình duyệt trong `tests/browser.cjs` tạo rồi xóa sản phẩm thử trên lab, đăng nhập các công cụ và chụp màn hình thật. Không chạy thử CRUD hoặc restart trên production nếu chưa có backup.
+`check.py` kiểm tra runtime/API/UID/ports/networks và LogQL. `runtime.py` restore SQL vào schema riêng, dọn schema thử và đối chiếu digest sản phẩm sau restart. Không chạy restart/CRUD trên production khi chưa có backup.
 
 ```bash
 npm install
@@ -119,18 +93,12 @@ npx playwright install chromium
 EVIDENCE_DIR=/home/phuc2102/web-qc-artifacts/evidence npm run test:browser
 ```
 
-Script đọc `.env` local hoặc biến môi trường. Khi kiểm thử từ Windows qua SSH tunnel, đặt `PMA_URL`, `GRAFANA_URL`, `PROMETHEUS_URL` theo các cổng tunnel; có thể đặt `BROWSER_EXECUTABLE` để dùng Chrome có sẵn. Browser chạy trên Windows, các dịch vụ vẫn chạy hoàn toàn trên Ubuntu. Ở máy lab bàn giao, Grafana dùng giới hạn 512 MB để tránh khởi động chậm do thiếu bộ nhớ.
+Browser test tạo/sửa/xóa sản phẩm thử, kiểm tra font/ảnh, đăng nhập công cụ và chụp ảnh thật. Có thể đặt `BROWSER_EXECUTABLE` hoặc URL tunnel; ảnh minh chứng Linux được thu bằng headless trong VM. Mọi đầu ra nằm ngoài repo.
 
-Không chạy `docker compose down -v`, `volume prune` hay import SQL đè lên database thật. Thử phục hồi bằng DB mới hoặc một Compose project độc lập, xác nhận số bản ghi và chức năng trước khi chuyển đổi. Backup SQL không thay thế backup wp-content/uploads.
+Xem [DEMO.md](DEMO.md) để đổi cổng rồi trả về, sửa app/Nginx/scrape interval/LogQL, phân biệt restart/recreate/build và dừng không xóa dữ liệu.
 
-## Mốc commit và minh chứng
+## Git và bàn giao
 
-1. Ứng dụng WordPress, MySQL, phpMyAdmin, Nginx và hardening nền tảng.
-2. Prometheus, cAdvisor, exporters và dashboard Grafana được provision.
-3. Loki, Promtail, ba LogQL và kiểm tra tích hợp.
+Giữ ba commit mốc app/DB/Nginx, monitoring, logging và lịch sử đã có; các commit sau hợp nhất Compose và hoàn thiện giao diện. Không viết lại lịch sử để giả tiến độ. Repo chỉ chứa source, cấu hình, tài nguyên ứng dụng, scripts, tests và tài liệu kỹ thuật. Word/PDF, minh chứng, render, dump và secrets ở ngoài repo.
 
-GitHub chỉ chứa code, SVG giao diện, cấu hình, scripts, tests và README. Báo cáo Word/PDF, screenshots, dump database, dữ liệu runtime và credentials được lưu bên ngoài repository theo yêu cầu bàn giao. Tài khoản GitHub hiện là Phucdz2112; mã SV thể hiện trong tác giả, tài khoản ứng dụng và dashboard. Nếu giảng viên yêu cầu chính tên đăng nhập GitHub trùng mã SV, cần xử lý riêng trên tài khoản GitHub.
-
-## Kịch bản demo
-
-Mở website và một trang chi tiết; đăng nhập WordPress bằng mã SV và thao tác sản phẩm; mở phpMyAdmin kiểm tra bảng; mở Prometheus Targets và hai metric availability; mở dashboard Grafana; chạy ba LogQL với log mới; trình bày networks, cổng, UID, headers, quyền DB và cách bảo vệ secrets; cuối cùng mở GitHub để đối chiếu commits và README.
+GitHub hiện Phucdz2112 theo repo được chỉ định. Mã SV nằm trong tác giả, tài khoản app và dashboard. Nếu giảng viên bắt buộc chính username GitHub trùng MSSV, cần xác nhận riêng; không tự đổi danh tính hoặc URL repo.

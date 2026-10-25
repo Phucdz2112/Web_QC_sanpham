@@ -12,7 +12,10 @@ def sql(query,database=None):
     return subprocess.check_output(args,cwd=root,input=query,text=True).strip()
 def digest(database):
     return sql("SELECT COUNT(*), MD5(GROUP_CONCAT(MD5(CONCAT_WS('|',ID,post_title,post_content,post_status)) ORDER BY ID SEPARATOR ';')) FROM "+database+".wp_posts WHERE post_type='product';")
-before=digest('wordpress')
+env=dict(line.split('=',1) for line in (root/'.env').read_text().splitlines() if line and not line.startswith('#'))
+database=env.get('MYSQL_DATABASE','wordpress')
+assert re.fullmatch(r'[A-Za-z0-9_]+',database)
+before=digest(database)
 backup=out.parent/'backups'/'after-deploy'
 run('python3','scripts/backup.py',str(backup))
 dump=max(backup.glob('wordpress-*.sql'),key=lambda p:p.stat().st_mtime)
@@ -29,8 +32,8 @@ grants=sql("SHOW GRANTS FOR 'wordpress'@'%';")
 assert '`wordpress`.*' in grants and 'ALL PRIVILEGES ON *.*' not in grants
 (out/'db-grants.txt').write_text(grants+'\n')
 run('docker','compose','restart','wordpress','mysql')
-run('sh','scripts/dc.sh','up','-d','--wait','--wait-timeout','300')
-after=digest('wordpress'); assert before==after,'Restart changed product digest'
+run('docker','compose','up','-d','--wait','--wait-timeout','300')
+after=digest(database); assert before==after,'Restart changed product digest'
 result={'backup_sql_nonempty':dump.stat().st_size>0,'restore_product_digest_matches':True,'temporary_restore_schema_removed':True,'restart_product_digest_matches':True,'app_database_grants_scoped':True,'product_count':int(before.split()[0])}
 (out/'operations.json').write_text(json.dumps(result,indent=2))
 print(json.dumps(result),flush=True)
