@@ -111,7 +111,15 @@ python3 scripts/backup.py /home/phuc2102/web-qc-artifacts/backups
 EVIDENCE_DIR=/home/phuc2102/web-qc-artifacts/evidence python3 tests/check.py
 ```
 
-`tests/check.py` là kiểm tra tích hợp read-only, ghi JSON ngoài repository. Kiểm thử trình duyệt trong `tests/browser.py` cần Python Playwright và Chromium; script tạo rồi xóa sản phẩm thử trên lab, đăng nhập các công cụ và chụp màn hình thật. Không chạy thử CRUD trên production nếu chưa có backup.
+`tests/check.py` là kiểm tra tích hợp read-only, ghi JSON ngoài repository. `tests/runtime.py` kiểm tra backup, phục hồi vào schema tạm riêng rồi xóa schema thử, và restart có kiểm soát để đối chiếu dữ liệu. Kiểm thử trình duyệt trong `tests/browser.cjs` tạo rồi xóa sản phẩm thử trên lab, đăng nhập các công cụ và chụp màn hình thật. Không chạy thử CRUD hoặc restart trên production nếu chưa có backup.
+
+```bash
+npm install
+npx playwright install chromium
+EVIDENCE_DIR=/home/phuc2102/web-qc-artifacts/evidence npm run test:browser
+```
+
+Script đọc `.env` local hoặc biến môi trường. Khi kiểm thử từ Windows qua SSH tunnel, đặt `PMA_URL`, `GRAFANA_URL`, `PROMETHEUS_URL` theo các cổng tunnel; có thể đặt `BROWSER_EXECUTABLE` để dùng Chrome có sẵn. Browser chạy trên Windows, các dịch vụ vẫn chạy hoàn toàn trên Ubuntu. Ở máy lab bàn giao, Grafana dùng giới hạn 512 MB để tránh khởi động chậm do thiếu bộ nhớ.
 
 Không chạy `docker compose down -v`, `volume prune` hay import SQL đè lên database thật. Thử phục hồi bằng DB mới hoặc một Compose project độc lập, xác nhận số bản ghi và chức năng trước khi chuyển đổi. Backup SQL không thay thế backup wp-content/uploads.
 
