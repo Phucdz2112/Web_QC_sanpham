@@ -1,0 +1,9 @@
+apiVersion: 1
+providers:
+  - name: DTC255180105
+    folder: DTC255180105
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
