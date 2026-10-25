@@ -30,11 +30,11 @@ python3 scripts/create-env.py
 Sửa `BIND_IP` và `SITE_URL` trong `.env` theo IP máy. Mật khẩu được sinh ngẫu nhiên riêng cho từng tài khoản, không in ra terminal và không đưa vào Git. Cấp quyền Docker theo chính sách máy; nếu tài khoản chưa được cấp, chạy các lệnh Docker với sudo.
 
 ```bash
-docker compose up -d --build --wait --wait-timeout 300
-sh scripts/install.sh
-python3 scripts/setup-exporter.py
-sh scripts/dc.sh up -d
-sh scripts/dc.sh ps
+sudo docker compose up -d --build --wait --wait-timeout 300
+sudo sh scripts/install.sh
+sudo python3 scripts/setup-exporter.py
+sudo sh scripts/dc.sh up -d
+sudo sh scripts/dc.sh ps
 ```
 
 Không chạy `create-env.py` để thay mật khẩu database đã tồn tại. Với named volume cũ, thay `.env` không đổi tài khoản đã lưu trong MySQL; phải backup và cập nhật SQL tương ứng trước. Trên máy bàn giao, Compose project là `project`, giữ `project_wordpress_data` và `project_mysql84_data`. Đổi tên project tạo bộ volume khác, không tự chuyển dữ liệu.
@@ -107,8 +107,8 @@ HTTP kèm security headers đáp ứng lựa chọn trong đề; chưa có TLS n
 ## Backup và kiểm thử
 
 ```bash
-python3 scripts/backup.py /home/phuc2102/web-qc-artifacts/backups
-EVIDENCE_DIR=/home/phuc2102/web-qc-artifacts/evidence python3 tests/check.py
+sudo python3 scripts/backup.py /home/phuc2102/web-qc-artifacts/backups
+sudo env EVIDENCE_DIR=/home/phuc2102/web-qc-artifacts/evidence python3 tests/check.py
 ```
 
 `tests/check.py` là kiểm tra tích hợp read-only, ghi JSON ngoài repository. `tests/runtime.py` kiểm tra backup, phục hồi vào schema tạm riêng rồi xóa schema thử, và restart có kiểm soát để đối chiếu dữ liệu. Kiểm thử trình duyệt trong `tests/browser.cjs` tạo rồi xóa sản phẩm thử trên lab, đăng nhập các công cụ và chụp màn hình thật. Không chạy thử CRUD hoặc restart trên production nếu chưa có backup.
